@@ -1,0 +1,25 @@
+{
+  "name": "billcom-spend-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for BILL Spend & Expense (formerly Divvy) v3 API",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "watch": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
