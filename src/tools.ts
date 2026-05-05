@@ -66,26 +66,81 @@ export function registerTools(server: McpServer, client: BillSpendClient): void 
     {
       title: "Tag transaction with custom fields",
       description:
-        "Set or update custom field values on a transaction (used for categorization, GL coding, memos exposed as custom fields). Pass each custom field UUID with its selected value UUID(s).",
+        "Set or update custom field values on a transaction (used for categorization, GL coding, memos exposed as custom fields). Pass each custom field UUID with its selected value UUID(s). The MCP fetches the transaction to translate UUIDs to BILL's internal IDs before sending.",
       inputSchema: {
         transactionId: z.string().describe("Transaction UUID."),
         customFields: z
           .array(
             z.object({
-              customFieldUuid: z.string(),
-              selectedValueUuids: z.array(z.string()).optional(),
-              value: z.string().optional(),
+              customFieldUuid: z.string().describe("UUID (tty_…) or base64 id of the custom field."),
+              selectedValueUuids: z
+                .array(z.string())
+                .optional()
+                .describe(
+                  "UUIDs (tvl_…) or base64 ids of selected values. Multi-value fields not yet supported by BILL's API; only the first value is sent."
+                ),
+              value: z
+                .string()
+                .optional()
+                .describe("Free-text value, for non-selection custom fields (e.g. Notes)."),
             })
           )
           .describe("Custom field values to apply."),
       },
     },
-    async ({ transactionId, customFields }) =>
-      ok(
+    async ({ transactionId, customFields }) => {
+      // BILL's PUT /transactions/{id}/custom-fields has two surprises:
+      //   1. The body field is named `customFieldId` (not `customFieldUuid`).
+      //   2. `selectedValues` is a single STRING (a base64 id), not an array.
+      //   3. The `tty_…` / `tvl_…` UUIDs returned by GET are silently rejected
+      //      (the API returns SUCCESS but the update is dropped). BILL only
+      //      applies the update when given the base64 `id` form.
+      // We accept either form from callers and look up the base64 id by
+      // re-reading the transaction.
+      type CFEntry = {
+        id: string;
+        uuid: string;
+        selectedValues?: { id: string; uuid: string; value?: string }[];
+      };
+      const tx = await client.request<{ customFields?: CFEntry[] }>(
+        "GET",
+        `/transactions/${encodeURIComponent(transactionId)}`
+      );
+      const fieldByKey = new Map<string, CFEntry>();
+      for (const cf of tx.customFields ?? []) {
+        if (cf.id) fieldByKey.set(cf.id, cf);
+        if (cf.uuid) fieldByKey.set(cf.uuid, cf);
+      }
+      const resolveFieldId = (key: string): string => {
+        const cf = fieldByKey.get(key);
+        if (!cf) {
+          throw new Error(
+            `customFieldUuid "${key}" not found on transaction ${transactionId}. ` +
+              "Pass the field's `uuid` (tty_…) or `id` (base64) as returned by get_transaction."
+          );
+        }
+        return cf.id;
+      };
+      const translated = customFields.map((f) => {
+        const customFieldId = resolveFieldId(f.customFieldUuid);
+        const out: Record<string, unknown> = { customFieldId };
+        if (f.selectedValueUuids && f.selectedValueUuids.length > 0) {
+          // BILL's API takes a single base64 id string here, not an array.
+          // The MCP can't translate value UUIDs (`tvl_…`) → ids without a
+          // catalog endpoint, so callers must pass the base64 id form
+          // (the `id` field on a prior transaction's selectedValues).
+          // Passing a UUID returns SUCCESS but silently drops the update.
+          out.selectedValues = f.selectedValueUuids[0];
+        }
+        if (f.value !== undefined) out.value = f.value;
+        return out;
+      });
+      return ok(
         await client.request("PUT", `/transactions/${encodeURIComponent(transactionId)}/custom-fields`, {
-          body: { customFields },
+          body: { customFields: translated },
         })
-      )
+      );
+    }
   );
 
   server.registerTool(
@@ -101,10 +156,13 @@ export function registerTools(server: McpServer, client: BillSpendClient): void 
     },
     async ({ transactionId, filePath }) => {
       const { uploadUrl, filename } = await client.uploadReceiptFile(filePath);
+      // BILL's POST /transactions/{id}/receipts expects field name `url`,
+      // not `uploadUrl`. Send `url` (and keep `uploadUrl` for backward compat
+      // in case the API ever accepts either).
       const attached = await client.request(
         "POST",
         `/transactions/${encodeURIComponent(transactionId)}/receipts`,
-        { body: { uploadUrl, filename } }
+        { body: { url: uploadUrl, filename } }
       );
       return ok({ uploadUrl, filename, attached });
     }
