@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-const PROD_BASE = "https://gateway.bill.com/connect/v3/spend";
+const PROD_BASE = "https://gateway.prod.bill.com/connect/v3/spend";
 const SANDBOX_BASE = "https://gateway.stage.bill.com/connect/v3/spend";
 
 export class BillSpendClient {

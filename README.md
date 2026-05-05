@@ -84,7 +84,7 @@ Or add to `.mcp.json` / settings directly:
 
 ## API surface
 
-- Base URL (prod): `https://gateway.bill.com/connect/v3/spend`
+- Base URL (prod): `https://gateway.prod.bill.com/connect/v3/spend`
 - Base URL (sandbox): `https://gateway.stage.bill.com/connect/v3/spend`
 - Auth: `apiToken` header
 - Rate limit: 60 calls/token/minute
