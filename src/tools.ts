@@ -19,8 +19,16 @@ const PaginationShape = {
 };
 
 function ok(data: unknown) {
+  // BILL endpoints like DELETE /receipts return 200 with an empty body, so
+  // `client.request` resolves to undefined. JSON.stringify(undefined) is the
+  // value `undefined`, not a string, which makes the MCP SDK reject the
+  // tool result. Coerce empty payloads to a minimal success envelope.
+  const text =
+    data === undefined
+      ? JSON.stringify({ status: "OK" })
+      : JSON.stringify(data, null, 2);
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    content: [{ type: "text" as const, text }],
   };
 }
 
