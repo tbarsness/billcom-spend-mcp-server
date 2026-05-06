@@ -132,7 +132,12 @@ export function registerTools(server: McpServer, client: BillSpendClient): void 
           // Passing a UUID returns SUCCESS but silently drops the update.
           out.selectedValues = f.selectedValueUuids[0];
         }
-        if (f.value !== undefined) out.value = f.value;
+        if (f.value !== undefined) {
+          // For free-text custom fields (e.g. Notes), BILL wants the body
+          // field named `note`, not `value`. Passing `value` returns SUCCESS
+          // but silently drops the update.
+          out.note = f.value;
+        }
         return out;
       });
       return ok(
