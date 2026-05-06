@@ -66,8 +66,30 @@ export class BillSpendClient {
 
   async putBinary(uploadUrl: string, filePath: string): Promise<void> {
     const data = await readFile(filePath);
+    // Without a Content-Type header, S3 stores the object as
+    // application/octet-stream. BILL's downstream malware scanner then sees
+    // a `.pdf`/`.jpg` filename but an opaque-binary stored MIME type, treats
+    // that mismatch as suspicious, and surfaces an "unsafe file" warning to
+    // the user. Inferring Content-Type from the filename extension keeps
+    // the stored MIME consistent with the filename.
+    const ext = (filePath.split(".").pop() ?? "").toLowerCase();
+    const contentType =
+      ext === "pdf"
+        ? "application/pdf"
+        : ext === "jpg" || ext === "jpeg"
+        ? "image/jpeg"
+        : ext === "png"
+        ? "image/png"
+        : ext === "heic"
+        ? "image/heic"
+        : ext === "heif"
+        ? "image/heif"
+        : ext === "webp"
+        ? "image/webp"
+        : "application/octet-stream";
     const res = await fetch(uploadUrl, {
       method: "PUT",
+      headers: { "Content-Type": contentType },
       body: data,
     });
     if (!res.ok) {

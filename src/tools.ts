@@ -173,6 +173,26 @@ export function registerTools(server: McpServer, client: BillSpendClient): void 
     }
   );
 
+  server.registerTool(
+    "delete_receipt_from_transaction",
+    {
+      title: "Delete receipt from transaction",
+      description:
+        "Remove a receipt from a transaction. Useful when a previously uploaded receipt was flagged unsafe by BILL's malware scanner or otherwise needs to be replaced.",
+      inputSchema: {
+        transactionId: z.string().describe("Transaction UUID."),
+        receiptId: z.string().describe("Receipt UUID (rct_...)."),
+      },
+    },
+    async ({ transactionId, receiptId }) =>
+      ok(
+        await client.request(
+          "DELETE",
+          `/transactions/${encodeURIComponent(transactionId)}/receipts/${encodeURIComponent(receiptId)}`
+        )
+      )
+  );
+
   // -- Budgets ---------------------------------------------------------------
 
   server.registerTool(
